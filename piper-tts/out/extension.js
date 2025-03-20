@@ -61,25 +61,25 @@ function getPiperPath(context) {
     let piperPath;
     switch (platform) {
         case 'win32':
-            piperPath = path.join(parentDir, 'piper_windows_amd64', 'piper.exe');
+            piperPath = path.join(parentDir, 'piper/windows_amd64', 'piper.exe');
             break;
         case 'darwin':
             if (arch === 'arm64') {
-                piperPath = path.join(parentDir, 'piper_macos_aarch64', 'piper');
+                piperPath = path.join(parentDir, 'piper/macos_aarch64', 'piper');
             }
             else {
-                piperPath = path.join(parentDir, 'piper_macos_x64', 'piper');
+                piperPath = path.join(parentDir, 'piper/macos_x64', 'piper');
             }
             break;
         case 'linux':
             if (arch === 'arm64') {
-                piperPath = path.join(parentDir, 'piper_linux_aarch64.tar', 'piper');
+                piperPath = path.join(parentDir, 'piper/linux_aarch64', 'piper');
             }
             else if (arch === 'arm') {
-                piperPath = path.join(parentDir, 'piper_linux_armv7l.tar', 'piper');
+                piperPath = path.join(parentDir, 'piper/linux_armv7l', 'piper');
             }
             else {
-                piperPath = path.join(parentDir, 'piper_linux_x86_64.tar', 'piper');
+                piperPath = path.join(parentDir, 'piper/linux_x86_64', 'piper');
             }
             break;
         default:
