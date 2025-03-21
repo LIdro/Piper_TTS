@@ -9,20 +9,34 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [
-    "onCommand:piper-tts.readAloud",
-    "onCommand:piper-tts.stopPlayback"
-  ],
+  "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
+    "configuration": {
+      "title": "Piper TTS",
+      "properties": {
+        "piper-tts.voice": {
+          "type": "string",
+          "default": "en_US-hfc_female-medium",
+          "description": "Voice model to use for text-to-speech. Use the 'Piper TTS: Select Voice' command to change."
+        }
+      }
+    },
     "commands": [
       {
         "command": "piper-tts.readAloud",
-        "title": "Read Aloud Text"
+        "title": "Read Aloud Text",
+        "category": "Piper TTS"
       },
       {
         "command": "piper-tts.stopPlayback",
-        "title": "Stop Reading"
+        "title": "Stop Reading",
+        "category": "Piper TTS"
+      },
+      {
+        "command": "piper-tts.selectVoice",
+        "title": "Select Voice",
+        "category": "Piper TTS"
       }
     ],
     "menus": {
@@ -35,6 +49,18 @@
         {
           "command": "piper-tts.stopPlayback",
           "group": "1_modification"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "piper-tts.readAloud",
+          "when": "editorHasSelection"
+        },
+        {
+          "command": "piper-tts.stopPlayback"
+        },
+        {
+          "command": "piper-tts.selectVoice"
         }
       ]
     }

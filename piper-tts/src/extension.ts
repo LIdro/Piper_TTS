@@ -6,6 +6,56 @@ import * as fs from 'fs';
 
 let piperProcess: ReturnType<typeof spawn> | undefined;
 
+function getAvailableVoices(context: vscode.ExtensionContext): string[] {
+    const parentDir = path.resolve(context.extensionUri.fsPath, '..');
+    const voicesDir = path.join(parentDir, 'voices');
+    
+    try {
+        const files = fs.readdirSync(voicesDir);
+        return files
+            .filter(file => file.endsWith('.onnx'))
+            .map(file => path.basename(file, '.onnx'));
+    } catch (error) {
+        console.error('Error reading voices directory:', error);
+        return [];
+    }
+}
+
+function getVoiceLabel(voice: string): string {
+    // Convert the voice ID to a more readable format
+    const parts = voice.split('-');
+    const locale = parts[0].replace('_', ' ');
+    const name = parts[1].replace(/_/g, ' ');
+    const quality = parts[2] || '';
+    return `${locale} - ${name} (${quality})`;
+}
+
+async function selectVoice(context: vscode.ExtensionContext) {
+    const voices = getAvailableVoices(context);
+    
+    if (voices.length === 0) {
+        vscode.window.showErrorMessage('No voice models found in the voices directory');
+        return;
+    }
+
+    const items = voices.map(voice => ({
+        label: getVoiceLabel(voice),
+        description: voice,
+    }));
+
+    const selection = await vscode.window.showQuickPick(items, {
+        placeHolder: 'Select a voice for text-to-speech',
+    });
+
+    if (selection) {
+        await vscode.workspace.getConfiguration('piper-tts').update(
+            'voice',
+            selection.description,
+            vscode.ConfigurationTarget.Global
+        );
+    }
+}
+
 function getPiperPath(context: vscode.ExtensionContext): string {
     const platform = os.platform();
     const arch = os.arch();
@@ -57,8 +107,11 @@ function getPiperPath(context: vscode.ExtensionContext): string {
 }
 
 function getVoicePath(context: vscode.ExtensionContext): string {
+    const config = vscode.workspace.getConfiguration('piper-tts');
+    const selectedVoice = config.get<string>('voice') || 'en_US-hfc_female-medium';
+    
     const parentDir = path.resolve(context.extensionUri.fsPath, '..');
-    const voicePath = path.join(parentDir, 'voices', 'en_US-hfc_female-medium.onnx');
+    const voicePath = path.join(parentDir, 'voices', `${selectedVoice}.onnx`);
     console.log('Voice path:', voicePath);
     console.log('Voice exists:', fs.existsSync(voicePath));
     return voicePath;
@@ -69,16 +122,15 @@ function getPlaybackCommand(): { command: string, args: string[] } {
     
     switch (platform) {
         case 'win32':
-            // Use play command from SoX with same parameters as Linux aplay
             return { command: 'play', args: [
-                '-t', 'raw',           // Raw audio format
-                '-r', '22050',         // Sample rate
-                '-b', '16',            // Bits per sample
-                '-e', 'signed',        // Signed samples
-                '-c', '1',             // Mono channel
-                '-L',                  // Little-endian
-                '-',                   // Read from stdin
-                'remix', '1'           // Ensure mono output
+                '-t', 'raw',
+                '-r', '22050',
+                '-b', '16',
+                '-e', 'signed',
+                '-c', '1',
+                '-L',
+                '-',
+                'remix', '1'
             ]};
         case 'darwin':
             return { command: 'afplay', args: ['-'] };
@@ -101,6 +153,12 @@ export function activate(context: vscode.ExtensionContext) {
     console.log('Extension path:', context.extensionUri.fsPath);
     console.log('OS platform:', os.platform());
     console.log('OS architecture:', os.arch());
+
+    // Register the voice selection command
+    let selectVoiceDisposable = vscode.commands.registerCommand('piper-tts.selectVoice', () => {
+        selectVoice(context);
+    });
+    context.subscriptions.push(selectVoiceDisposable);
 
     const disposable = vscode.commands.registerCommand('piper-tts.readAloud', async () => {
         try {
@@ -135,9 +193,9 @@ export function activate(context: vscode.ExtensionContext) {
 
             // Create piper process with full path
             const piper = spawn(piperPath, ['--model', voicePath, '--output-raw'], {
-                cwd: path.dirname(piperPath), // Set working directory to piper's location for DLL loading
-                env: { ...process.env }, // Pass current environment variables
-                windowsHide: false // Show window for debugging
+                cwd: path.dirname(piperPath),
+                env: { ...process.env },
+                windowsHide: false
             });
             piperProcess = piper;
 
