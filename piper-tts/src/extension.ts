@@ -5,6 +5,7 @@ import { spawn } from 'child_process';
 import * as fs from 'fs';
 
 let piperProcess: ReturnType<typeof spawn> | undefined;
+let playerProcess: ReturnType<typeof spawn> | undefined;
 
 function getAvailableVoices(context: vscode.ExtensionContext): string[] {
     const parentDir = path.resolve(context.extensionUri.fsPath, '..');
@@ -146,6 +147,10 @@ function stopCurrentPlayback() {
         piperProcess.kill();
         piperProcess = undefined;
     }
+    if (playerProcess) {
+        playerProcess.kill();
+        playerProcess = undefined;
+    }
 }
 
 export function activate(context: vscode.ExtensionContext) {
@@ -202,9 +207,10 @@ export function activate(context: vscode.ExtensionContext) {
             // Log process info
             console.log('Piper process:', piper.pid);
             console.log('Piper working directory:', path.dirname(piperPath));
+// Create playback process
+const player = spawn(playback.command, playback.args);
+playerProcess = player;
 
-            // Create playback process
-            const player = spawn(playback.command, playback.args);
 
             // Handle process output for debugging
             piper.stdout.on('data', (data) => {
@@ -247,6 +253,7 @@ export function activate(context: vscode.ExtensionContext) {
 
             player.on('close', (code) => {
                 console.log('Player process exited with code:', code);
+                playerProcess = undefined;
             });
 
         } catch (error) {

@@ -41,6 +41,7 @@ const path = __importStar(require("path"));
 const child_process_1 = require("child_process");
 const fs = __importStar(require("fs"));
 let piperProcess;
+let playerProcess;
 function getAvailableVoices(context) {
     const parentDir = path.resolve(context.extensionUri.fsPath, '..');
     const voicesDir = path.join(parentDir, 'voices');
@@ -164,6 +165,10 @@ function stopCurrentPlayback() {
         piperProcess.kill();
         piperProcess = undefined;
     }
+    if (playerProcess) {
+        playerProcess.kill();
+        playerProcess = undefined;
+    }
 }
 function activate(context) {
     console.log('Piper TTS extension is now active!');
@@ -211,6 +216,7 @@ function activate(context) {
             console.log('Piper working directory:', path.dirname(piperPath));
             // Create playback process
             const player = (0, child_process_1.spawn)(playback.command, playback.args);
+            playerProcess = player;
             // Handle process output for debugging
             piper.stdout.on('data', (data) => {
                 console.log('Piper output:', data.toString());
@@ -244,6 +250,7 @@ function activate(context) {
             });
             player.on('close', (code) => {
                 console.log('Player process exited with code:', code);
+                playerProcess = undefined;
             });
         }
         catch (error) {
