@@ -43,7 +43,7 @@ const fs = __importStar(require("fs"));
 let piperProcess;
 let playerProcess;
 function getAvailableVoices(context) {
-    const parentDir = path.resolve(context.extensionUri.fsPath, '..');
+    const parentDir = path.resolve(context.extensionUri.fsPath, '');
     const voicesDir = path.join(parentDir, 'voices');
     try {
         const files = fs.readdirSync(voicesDir);
@@ -88,7 +88,7 @@ function getPiperPath(context) {
     const extensionPath = context.extensionUri.fsPath;
     console.log('Extension path:', extensionPath);
     // Get parent directory
-    const parentDir = path.resolve(extensionPath, '..');
+    const parentDir = path.resolve(extensionPath, '');
     console.log('Parent directory:', parentDir);
     // List files in parent directory for debugging
     try {
@@ -132,7 +132,7 @@ function getPiperPath(context) {
 function getVoicePath(context) {
     const config = vscode.workspace.getConfiguration('piper-tts');
     const selectedVoice = config.get('voice') || 'en_US-hfc_female-medium';
-    const parentDir = path.resolve(context.extensionUri.fsPath, '..');
+    const parentDir = path.resolve(context.extensionUri.fsPath, '');
     const voicePath = path.join(parentDir, 'voices', `${selectedVoice}.onnx`);
     console.log('Voice path:', voicePath);
     console.log('Voice exists:', fs.existsSync(voicePath));
@@ -161,12 +161,22 @@ function getPlaybackCommand() {
     }
 }
 function stopCurrentPlayback() {
-    if (piperProcess) {
-        piperProcess.kill();
-        piperProcess = undefined;
+    try {
+        if (piperProcess && !piperProcess.killed) {
+            console.log('Stopping Piper process...');
+            piperProcess.kill();
+            piperProcess = undefined;
+        }
+        if (playerProcess && !playerProcess.killed) {
+            console.log('Stopping player process...');
+            playerProcess.kill();
+            playerProcess = undefined;
+        }
     }
-    if (playerProcess) {
-        playerProcess.kill();
+    catch (error) {
+        console.error('Error stopping playback:', error);
+        // Reset process references even if kill fails
+        piperProcess = undefined;
         playerProcess = undefined;
     }
 }
@@ -175,95 +185,122 @@ function activate(context) {
     console.log('Extension path:', context.extensionUri.fsPath);
     console.log('OS platform:', os.platform());
     console.log('OS architecture:', os.arch());
-    // Register the voice selection command
-    let selectVoiceDisposable = vscode.commands.registerCommand('piper-tts.selectVoice', () => {
-        selectVoice(context);
-    });
-    context.subscriptions.push(selectVoiceDisposable);
-    const disposable = vscode.commands.registerCommand('piper-tts.readAloud', async () => {
-        try {
-            const editor = vscode.window.activeTextEditor;
-            if (!editor) {
-                return;
+    // Create the API implementation
+    const api = {
+        readText: async (text) => {
+            try {
+                if (!text) {
+                    throw new Error('No text provided');
+                }
+                // Stop any current playback
+                stopCurrentPlayback();
+                const piperPath = getPiperPath(context);
+                const voicePath = getVoicePath(context);
+                // Verify file existence
+                if (!fs.existsSync(piperPath)) {
+                    throw new Error(`Piper executable not found at: ${piperPath}`);
+                }
+                if (!fs.existsSync(voicePath)) {
+                    throw new Error(`Voice model not found at: ${voicePath}`);
+                }
+                const playback = getPlaybackCommand();
+                // Create piper process with full path
+                const piper = (0, child_process_1.spawn)(piperPath, ['--model', voicePath, '--output-raw'], {
+                    cwd: path.dirname(piperPath),
+                    env: { ...process.env },
+                    windowsHide: false
+                });
+                piperProcess = piper;
+                // Create playback process
+                const player = (0, child_process_1.spawn)(playback.command, playback.args);
+                playerProcess = player;
+                // Handle process output for debugging
+                piper.stdout.on('data', (data) => {
+                    console.log('Piper output:', data.toString());
+                });
+                piper.stderr.on('data', (data) => {
+                    console.error('Piper error output:', data.toString());
+                });
+                player.stdout.on('data', (data) => {
+                    console.log('Player output:', data.toString());
+                });
+                player.stderr.on('data', (data) => {
+                    console.error('Player error output:', data.toString());
+                });
+                // Pipe the text through piper and to the playback command
+                piper.stdout.pipe(player.stdin);
+                piper.stdin.write(text);
+                piper.stdin.end();
+                // Return a promise that resolves when playback is complete
+                return new Promise((resolve, reject) => {
+                    piper.on('error', (error) => {
+                        console.error('Piper error:', error);
+                        reject(error);
+                    });
+                    player.on('error', (error) => {
+                        console.error('Playback error:', error);
+                        reject(error);
+                    });
+                    // Clean up processes
+                    piper.on('close', (code) => {
+                        console.log('Piper process exited with code:', code);
+                        piperProcess = undefined;
+                        // Only reject if the process wasn't killed intentionally
+                        if (code !== 0 && code !== null) {
+                            reject(new Error(`Piper process exited with code: ${code}`));
+                        }
+                        else {
+                            resolve();
+                        }
+                    });
+                    player.on('close', (code) => {
+                        console.log('Player process exited with code:', code);
+                        playerProcess = undefined;
+                        if (code === 0) {
+                            resolve();
+                        }
+                        else {
+                            reject(new Error(`Player process exited with code: ${code}`));
+                        }
+                    });
+                });
             }
-            const selection = editor.selection;
-            const text = editor.document.getText(selection);
-            if (!text) {
-                vscode.window.showInformationMessage('Please select some text to read aloud');
-                return;
+            catch (error) {
+                console.error('Error:', error);
+                throw error;
             }
-            // Stop any current playback
+        },
+        stopPlayback: () => {
             stopCurrentPlayback();
-            const piperPath = getPiperPath(context);
-            const voicePath = getVoicePath(context);
-            // Verify file existence
-            if (!fs.existsSync(piperPath)) {
-                throw new Error(`Piper executable not found at: ${piperPath}`);
-            }
-            if (!fs.existsSync(voicePath)) {
-                throw new Error(`Voice model not found at: ${voicePath}`);
-            }
-            const playback = getPlaybackCommand();
-            // Create piper process with full path
-            const piper = (0, child_process_1.spawn)(piperPath, ['--model', voicePath, '--output-raw'], {
-                cwd: path.dirname(piperPath),
-                env: { ...process.env },
-                windowsHide: false
-            });
-            piperProcess = piper;
-            // Log process info
-            console.log('Piper process:', piper.pid);
-            console.log('Piper working directory:', path.dirname(piperPath));
-            // Create playback process
-            const player = (0, child_process_1.spawn)(playback.command, playback.args);
-            playerProcess = player;
-            // Handle process output for debugging
-            piper.stdout.on('data', (data) => {
-                console.log('Piper output:', data.toString());
-            });
-            piper.stderr.on('data', (data) => {
-                console.error('Piper error output:', data.toString());
-            });
-            player.stdout.on('data', (data) => {
-                console.log('Player output:', data.toString());
-            });
-            player.stderr.on('data', (data) => {
-                console.error('Player error output:', data.toString());
-            });
-            // Pipe the text through piper and to the playback command
-            piper.stdout.pipe(player.stdin);
-            piper.stdin.write(text);
-            piper.stdin.end();
-            // Handle errors
-            piper.on('error', (error) => {
-                console.error('Piper error:', error);
-                vscode.window.showErrorMessage('Error running text-to-speech: ' + error.message);
-            });
-            player.on('error', (error) => {
-                console.error('Playback error:', error);
-                vscode.window.showErrorMessage('Error playing audio: ' + error.message);
-            });
-            // Clean up processes
-            piper.on('close', (code) => {
-                console.log('Piper process exited with code:', code);
-                piperProcess = undefined;
-            });
-            player.on('close', (code) => {
-                console.log('Player process exited with code:', code);
-                playerProcess = undefined;
-            });
+        },
+        selectVoice: () => selectVoice(context)
+    };
+    // Register commands to use the API
+    let selectVoiceDisposable = vscode.commands.registerCommand('piper-tts.selectVoice', () => api.selectVoice());
+    context.subscriptions.push(selectVoiceDisposable);
+    const readAloudDisposable = vscode.commands.registerCommand('piper-tts.readAloud', async () => {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) {
+            return;
+        }
+        const selection = editor.selection;
+        const text = editor.document.getText(selection);
+        if (!text) {
+            vscode.window.showInformationMessage('Please select some text to read aloud');
+            return;
+        }
+        try {
+            await api.readText(text);
         }
         catch (error) {
-            console.error('Error:', error);
             vscode.window.showErrorMessage('Error running text-to-speech: ' + (error instanceof Error ? error.message : String(error)));
         }
     });
-    context.subscriptions.push(disposable);
-    // Register a command to stop playback
-    const stopDisposable = vscode.commands.registerCommand('piper-tts.stopPlayback', () => {
-        stopCurrentPlayback();
-    });
+    context.subscriptions.push(readAloudDisposable);
+    const stopDisposable = vscode.commands.registerCommand('piper-tts.stopPlayback', () => api.stopPlayback());
     context.subscriptions.push(stopDisposable);
+    // Return the API for other extensions to use
+    return api;
 }
 function deactivate() {
     stopCurrentPlayback();
