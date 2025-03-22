@@ -1,4 +1,5 @@
 {
+  "publisher": "sethmiller",
   "name": "piper-tts",
   "displayName": "Piper TTS",
   "description": "High-quality local speech to text with Piper",
@@ -6,6 +7,8 @@
   "engines": {
     "vscode": "^1.98.0"
   },
+  "extensionKind": ["workspace"],
+  "enabledApiProposals": [],
   "categories": [
     "Other"
   ],
@@ -15,6 +18,11 @@
     "onCommand:piper-tts.selectVoice",
     "onLanguage:*"
   ],
+  "exports": {
+    "piper-tts": {
+      "default": "./out/extension.js"
+    }
+  },
   "main": "./out/extension.js",
   "contributes": {
     "configuration": {

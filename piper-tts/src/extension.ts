@@ -170,6 +170,9 @@ export interface PiperTTSApi {
     selectVoice(): Promise<void>;
 }
 
+// This will be the exported API that other extensions can consume
+let extensionApi: PiperTTSApi | undefined;
+
 export function activate(context: vscode.ExtensionContext): PiperTTSApi {
     console.log('Piper TTS extension is now active!');
     console.log('Extension path:', context.extensionUri.fsPath);
@@ -308,8 +311,26 @@ export function activate(context: vscode.ExtensionContext): PiperTTSApi {
     const stopDisposable = vscode.commands.registerCommand('piper-tts.stopPlayback', () => api.stopPlayback());
     context.subscriptions.push(stopDisposable);
 
+    // Store the API in our module-level variable so it can be accessed by getApi
+    extensionApi = api;
+    
     // Return the API for other extensions to use
     return api;
+}
+
+/**
+ * This function allows other extensions to get access to the Piper TTS API
+ * They can use it like this:
+ * ```
+ * const piperExtension = vscode.extensions.getExtension('sethmiller.piper-tts');
+ * if (piperExtension) {
+ *   const piperApi = await piperExtension.activate();
+ *   await piperApi.readText('Hello world');
+ * }
+ * ```
+ */
+export function getApi(): PiperTTSApi | undefined {
+    return extensionApi;
 }
 
 export function deactivate() {
