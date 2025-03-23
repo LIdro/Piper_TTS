@@ -178,6 +178,32 @@ export function activate(context: vscode.ExtensionContext): PiperTTSApi {
     console.log('Extension path:', context.extensionUri.fsPath);
     console.log('OS platform:', os.platform());
     console.log('OS architecture:', os.arch());
+    
+    // Set execute permissions for Linux binaries
+    if (os.platform() === 'linux') {
+        try {
+            const parentDir = path.resolve(context.extensionUri.fsPath, '');
+            const piperPath = getPiperPath(context);
+            
+            // Make the piper binary executable
+            fs.chmodSync(piperPath, 0o755);
+            console.log(`Set execute permissions for ${piperPath}`);
+            
+            // Also set permissions for other binaries that might be needed
+            const linuxDir = path.dirname(piperPath);
+            const otherBinaries = ['espeak-ng', 'piper_phonemize'];
+            
+            for (const binary of otherBinaries) {
+                const binaryPath = path.join(linuxDir, binary);
+                if (fs.existsSync(binaryPath)) {
+                    fs.chmodSync(binaryPath, 0o755);
+                    console.log(`Set execute permissions for ${binaryPath}`);
+                }
+            }
+        } catch (error) {
+            console.error('Error setting execute permissions:', error);
+        }
+    }
 
     // Create the API implementation
     const api: PiperTTSApi = {

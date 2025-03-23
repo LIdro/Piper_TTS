@@ -7,3 +7,4 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 ## [Unreleased]
 
 - Initial release
+- Fixed Linux permission issue with Piper binaries by automatically setting execute permissions during extension activation

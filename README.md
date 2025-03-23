@@ -22,6 +22,18 @@ No additional requirements.
 ### Linux Users
 No additional requirements (uses `aplay` which is typically pre-installed).
 
+The extension will automatically set the necessary execute permissions for the Piper binaries. If you still encounter permission issues, you may need to manually set execute permissions:
+
+```bash
+# Navigate to your extension directory (replace with your actual path)
+cd ~/.vscode/extensions/sethmiller.piper-tts-*
+
+# Set execute permissions for Linux binaries
+chmod +x piper/linux_x86_64/piper
+chmod +x piper/linux_x86_64/espeak-ng
+chmod +x piper/linux_x86_64/piper_phonemize
+```
+
 ## Usage
 
 1. Select the text you want to read aloud
@@ -36,6 +48,7 @@ Currently, this extension does not have any configurable settings.
 ## Known Issues
 
 - Windows users must install SoX for audio playback to work
+- Linux users might encounter permission issues with the Piper binaries. The extension attempts to set the correct permissions automatically, but if issues persist, see the Linux Users section for manual steps
 
 ## Release Notes
 
