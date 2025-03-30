@@ -1,9 +1,10 @@
 {
-  "publisher": "sethmiller",
+  "publisher": "Seth Miller",
   "name": "piper-tts",
   "displayName": "Piper TTS",
   "description": "High-quality local speech to text with Piper",
-  "version": "0.0.1",
+  "icon": "images/icon.png",
+  "version": "1.0.0",
   "engines": {
     "vscode": "^1.98.0"
   },
