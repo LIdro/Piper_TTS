@@ -16,6 +16,7 @@
     "onCommand:piper-tts.readAloud",
     "onCommand:piper-tts.stopPlayback",
     "onCommand:piper-tts.selectVoice",
+    "onCommand:piper-tts.downloadVoice",
     "onLanguage:*"
   ],
   "exports": {
@@ -50,6 +51,11 @@
         "command": "piper-tts.selectVoice",
         "title": "Select Voice",
         "category": "Piper TTS"
+      },
+      {
+        "command": "piper-tts.downloadVoice",
+        "title": "Download Voice",
+        "category": "Piper TTS"
       }
     ],
     "menus": {
@@ -74,6 +80,9 @@
         },
         {
           "command": "piper-tts.selectVoice"
+        },
+        {
+          "command": "piper-tts.downloadVoice"
         }
       ]
     }

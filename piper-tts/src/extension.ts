@@ -3,6 +3,8 @@ import * as os from 'os';
 import * as path from 'path';
 import { spawn } from 'child_process';
 import * as fs from 'fs';
+import * as https from 'https';
+import * as http from 'http';
 
 let piperProcess: ReturnType<typeof spawn> | undefined;
 let playerProcess: ReturnType<typeof spawn> | undefined;
@@ -29,6 +31,155 @@ function getVoiceLabel(voice: string): string {
     const name = parts[1].replace(/_/g, ' ');
     const quality = parts[2] || '';
     return `${locale} - ${name} (${quality})`;
+}
+
+// Helper function to download a file from a URL
+function downloadFile(url: string, destination: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+        const protocol = url.startsWith('https') ? https : http;
+        
+        const file = fs.createWriteStream(destination);
+        
+        const request = protocol.get(url, (response) => {
+            if (response.statusCode === 302 || response.statusCode === 301) {
+                // Handle redirects
+                if (response.headers.location) {
+                    downloadFile(response.headers.location, destination)
+                        .then(resolve)
+                        .catch(reject);
+                    return;
+                }
+            }
+            
+            if (response.statusCode !== 200) {
+                reject(new Error(`Failed to download file: ${response.statusCode} ${response.statusMessage}`));
+                return;
+            }
+            
+            response.pipe(file);
+            
+            file.on('finish', () => {
+                file.close();
+                resolve();
+            });
+        });
+        
+        request.on('error', (err) => {
+            fs.unlink(destination, () => {});
+            reject(err);
+        });
+        
+        file.on('error', (err) => {
+            fs.unlink(destination, () => {});
+            reject(err);
+        });
+    });
+}
+
+// Function to load and parse the voices.json file
+function loadVoicesData(context: vscode.ExtensionContext): any {
+    const parentDir = path.resolve(context.extensionUri.fsPath, '');
+    const voicesJsonPath = path.join(parentDir, 'voices', 'voices.json');
+    
+    try {
+        const voicesJson = fs.readFileSync(voicesJsonPath, 'utf8');
+        return JSON.parse(voicesJson);
+    } catch (error) {
+        console.error('Error reading voices.json:', error);
+        throw new Error('Failed to load voices data');
+    }
+}
+
+// Function to download a voice model and its config
+async function downloadVoice(context: vscode.ExtensionContext): Promise<void> {
+    try {
+        const voicesData = loadVoicesData(context);
+        
+        // Get list of languages
+        const languages = Object.keys(voicesData);
+        
+        // Step 1: Let user select a language
+        const selectedLanguage = await vscode.window.showQuickPick(languages, {
+            placeHolder: 'Select a language',
+        });
+        
+        if (!selectedLanguage) {
+            return; // User cancelled
+        }
+        
+        // Step 2: Let user select a voice for the chosen language
+        const voices = Object.keys(voicesData[selectedLanguage]);
+        const selectedVoice = await vscode.window.showQuickPick(voices, {
+            placeHolder: `Select a voice for ${selectedLanguage}`,
+        });
+        
+        if (!selectedVoice) {
+            return; // User cancelled
+        }
+        
+        // Step 3: Let user select a model size
+        const modelSizes = Object.keys(voicesData[selectedLanguage][selectedVoice]);
+        const selectedSize = await vscode.window.showQuickPick(modelSizes, {
+            placeHolder: `Select a model size for ${selectedVoice}`,
+        });
+        
+        if (!selectedSize) {
+            return; // User cancelled
+        }
+        
+        // Get the model and config URLs
+        const modelUrl = voicesData[selectedLanguage][selectedVoice][selectedSize].model;
+        const configUrl = voicesData[selectedLanguage][selectedVoice][selectedSize].config;
+        
+        // Create language code from the selected language (e.g., "English (en_US)" -> "en_US")
+        const languageCode = selectedLanguage.match(/\(([^)]+)\)/)?.[1] || '';
+        
+        // Create voice ID (e.g., "en_US-amy-medium")
+        const voiceId = `${languageCode}-${selectedVoice}-${selectedSize}`;
+        
+        // Create destination paths
+        const parentDir = path.resolve(context.extensionUri.fsPath, '');
+        const voicesDir = path.join(parentDir, 'voices');
+        
+        // Ensure voices directory exists
+        if (!fs.existsSync(voicesDir)) {
+            fs.mkdirSync(voicesDir, { recursive: true });
+        }
+        
+        const modelPath = path.join(voicesDir, `${voiceId}.onnx`);
+        const configPath = path.join(voicesDir, `${voiceId}.onnx.json`);
+        
+        // Show progress while downloading
+        await vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: `Downloading ${voiceId}`,
+            cancellable: false
+        }, async (progress) => {
+            progress.report({ message: 'Downloading model file...' });
+            
+            // Download model file
+            await downloadFile(modelUrl, modelPath);
+            
+            progress.report({ message: 'Downloading config file...', increment: 50 });
+            
+            // Download config file
+            await downloadFile(configUrl, configPath);
+            
+            progress.report({ message: 'Download complete', increment: 50 });
+        });
+        
+        // Set the downloaded voice as the current voice
+        await vscode.workspace.getConfiguration('piper-tts').update(
+            'voice',
+            voiceId,
+            vscode.ConfigurationTarget.Global
+        );
+        
+        vscode.window.showInformationMessage(`Voice ${voiceId} has been downloaded and set as the current voice.`);
+    } catch (error) {
+        console.error('Error downloading voice:', error);
+        vscode.window.showErrorMessage('Failed to download voice: ' + (error instanceof Error ? error.message : String(error)));
+    }
 }
 
 async function selectVoice(context: vscode.ExtensionContext) {
@@ -168,6 +319,7 @@ export interface PiperTTSApi {
     readText(text: string): Promise<void>;
     stopPlayback(): void;
     selectVoice(): Promise<void>;
+    downloadVoice(): Promise<void>;
 }
 
 // This will be the exported API that other extensions can consume
@@ -305,7 +457,8 @@ export function activate(context: vscode.ExtensionContext): PiperTTSApi {
         stopPlayback: () => {
             stopCurrentPlayback();
         },
-        selectVoice: () => selectVoice(context)
+        selectVoice: () => selectVoice(context),
+        downloadVoice: () => downloadVoice(context)
     };
 
     // Register commands to use the API
@@ -336,6 +489,9 @@ export function activate(context: vscode.ExtensionContext): PiperTTSApi {
 
     const stopDisposable = vscode.commands.registerCommand('piper-tts.stopPlayback', () => api.stopPlayback());
     context.subscriptions.push(stopDisposable);
+
+    const downloadVoiceDisposable = vscode.commands.registerCommand('piper-tts.downloadVoice', () => api.downloadVoice());
+    context.subscriptions.push(downloadVoiceDisposable);
 
     // Store the API in our module-level variable so it can be accessed by getApi
     extensionApi = api;
