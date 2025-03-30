@@ -38,12 +38,29 @@ function downloadFile(url: string, destination: string): Promise<void> {
     return new Promise((resolve, reject) => {
         const protocol = url.startsWith('https') ? https : http;
         
-        const file = fs.createWriteStream(destination);
+        // Make sure the destination directory exists
+        const destDir = path.dirname(destination);
+        if (!fs.existsSync(destDir)) {
+            fs.mkdirSync(destDir, { recursive: true });
+        }
+        
+        // If the file already exists, delete it first to avoid any issues
+        if (fs.existsSync(destination)) {
+            try {
+                fs.unlinkSync(destination);
+            } catch (err) {
+                console.error(`Error removing existing file ${destination}:`, err);
+            }
+        }
+        
+        const file = fs.createWriteStream(destination, { flags: 'wx' });
         
         const request = protocol.get(url, (response) => {
             if (response.statusCode === 302 || response.statusCode === 301) {
                 // Handle redirects
                 if (response.headers.location) {
+                    // Close the current file before starting a new download
+                    file.close();
                     downloadFile(response.headers.location, destination)
                         .then(resolve)
                         .catch(reject);
@@ -52,6 +69,8 @@ function downloadFile(url: string, destination: string): Promise<void> {
             }
             
             if (response.statusCode !== 200) {
+                file.close();
+                fs.unlink(destination, () => {});
                 reject(new Error(`Failed to download file: ${response.statusCode} ${response.statusMessage}`));
                 return;
             }
@@ -59,17 +78,34 @@ function downloadFile(url: string, destination: string): Promise<void> {
             response.pipe(file);
             
             file.on('finish', () => {
-                file.close();
-                resolve();
+                // Explicitly flush to disk before closing
+                file.end(() => {
+                    file.close();
+                    
+                    // Verify the file exists and has content
+                    try {
+                        const stats = fs.statSync(destination);
+                        if (stats.size === 0) {
+                            reject(new Error(`Downloaded file is empty: ${destination}`));
+                            return;
+                        }
+                        resolve();
+                    } catch (err) {
+                        const errorMessage = err instanceof Error ? err.message : String(err);
+                        reject(new Error(`Error verifying downloaded file: ${errorMessage}`));
+                    }
+                });
             });
         });
         
         request.on('error', (err) => {
+            file.close();
             fs.unlink(destination, () => {});
             reject(err);
         });
         
         file.on('error', (err) => {
+            file.close();
             fs.unlink(destination, () => {});
             reject(err);
         });
@@ -168,12 +204,28 @@ async function downloadVoice(context: vscode.ExtensionContext): Promise<void> {
             progress.report({ message: 'Download complete', increment: 50 });
         });
         
+        // Make sure any existing processes are stopped
+        stopCurrentPlayback();
+        
+        // Add a small delay to ensure files are fully written and accessible
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Verify the downloaded files exist and are accessible
+        if (!fs.existsSync(modelPath) || !fs.existsSync(configPath)) {
+            throw new Error('Downloaded voice files not found or not accessible');
+        }
+        
         // Set the downloaded voice as the current voice
         await vscode.workspace.getConfiguration('piper-tts').update(
             'voice',
             voiceId,
             vscode.ConfigurationTarget.Global
         );
+        
+        // Ensure file handles are properly closed by forcing a garbage collection
+        if (global.gc) {
+            global.gc();
+        }
         
         vscode.window.showInformationMessage(`Voice ${voiceId} has been downloaded and set as the current voice.`);
     } catch (error) {
@@ -368,6 +420,9 @@ export function activate(context: vscode.ExtensionContext): PiperTTSApi {
                 // Stop any current playback
                 stopCurrentPlayback();
 
+                // Small delay to ensure any file operations are complete
+                await new Promise(resolve => setTimeout(resolve, 100));
+
                 const piperPath = getPiperPath(context);
                 const voicePath = getVoicePath(context);
 
@@ -377,6 +432,16 @@ export function activate(context: vscode.ExtensionContext): PiperTTSApi {
                 }
                 if (!fs.existsSync(voicePath)) {
                     throw new Error(`Voice model not found at: ${voicePath}`);
+                }
+                
+                // Verify the voice file is accessible and not locked
+                try {
+                    // Try to open the file to verify it's not locked
+                    const fd = fs.openSync(voicePath, 'r');
+                    fs.closeSync(fd);
+                } catch (err) {
+                    const errorMessage = err instanceof Error ? err.message : String(err);
+                    throw new Error(`Voice model file is not accessible: ${errorMessage}`);
                 }
 
                 const playback = getPlaybackCommand();
