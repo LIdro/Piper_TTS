@@ -5,6 +5,10 @@
   "description": "High-quality local speech to text with Piper",
   "icon": "images/icon.png",
   "version": "1.0.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/heyseth/Piper_TTS"
+  },
   "engines": {
     "vscode": "^1.98.0"
   },
