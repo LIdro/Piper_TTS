@@ -321,12 +321,14 @@ function getVoicePath(context: vscode.ExtensionContext): string {
     return voicePath;
 }
 
-function getPlaybackCommand(): { command: string, args: string[] } {
+function getPlaybackCommand(context: vscode.ExtensionContext): { command: string, args: string[] } {
     const platform = os.platform();
     
     switch (platform) {
         case 'win32':
-            return { command: 'play', args: [
+            const parentDir = path.resolve(context.extensionUri.fsPath, '');
+            const playPath = path.join(parentDir, 'sox', 'play.exe');
+            return { command: playPath, args: [
                 '-t', 'raw',
                 '-r', '22050',
                 '-b', '16',
@@ -444,7 +446,7 @@ export function activate(context: vscode.ExtensionContext): PiperTTSApi {
                     throw new Error(`Voice model file is not accessible: ${errorMessage}`);
                 }
 
-                const playback = getPlaybackCommand();
+                const playback = getPlaybackCommand(context);
 
                 // Create piper process with full path
                 const piper = spawn(piperPath, ['--model', voicePath, '--output-raw'], {
