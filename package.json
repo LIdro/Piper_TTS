@@ -2,7 +2,7 @@
   "publisher": "sethmiller",
   "name": "piper-tts",
   "displayName": "Piper TTS",
-  "description": "High-quality local speech to text with Piper",
+  "description": "High-quality local text to speech with Piper",
   "icon": "images/icon.png",
   "version": "1.0.0",
   "repository": {
