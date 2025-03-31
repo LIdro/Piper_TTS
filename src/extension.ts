@@ -368,12 +368,61 @@ function stopCurrentPlayback() {
     }
 }
 
+async function removeVoice(context: vscode.ExtensionContext) {
+    const voices = getAvailableVoices(context);
+    
+    if (voices.length === 0) {
+        vscode.window.showErrorMessage('No voice models found in the voices directory');
+        return;
+    }
+
+    const items = voices.map(voice => ({
+        label: getVoiceLabel(voice),
+        description: voice,
+    }));
+
+    const selection = await vscode.window.showQuickPick(items, {
+        placeHolder: 'Select a voice to remove',
+    });
+
+    if (selection) {
+        const voiceId = selection.description;
+        const parentDir = path.resolve(context.extensionUri.fsPath, '');
+        const modelPath = path.join(parentDir, 'voices', `${voiceId}.onnx`);
+        const configPath = path.join(parentDir, 'voices', `${voiceId}.onnx.json`);
+
+        try {
+            // Delete the model file if it exists
+            if (fs.existsSync(modelPath)) {
+                fs.unlinkSync(modelPath);
+            }
+            // Delete the config file if it exists
+            if (fs.existsSync(configPath)) {
+                fs.unlinkSync(configPath);
+            }
+
+            vscode.window.showInformationMessage(`Voice ${voiceId} has been removed.`);
+
+            // If this was the currently selected voice, reset to default
+            const config = vscode.workspace.getConfiguration('piper-tts');
+            const currentVoice = config.get<string>('voice');
+            if (currentVoice === voiceId) {
+                await config.update('voice', 'en_US-hfc_female-medium', vscode.ConfigurationTarget.Global);
+            }
+        } catch (error) {
+            console.error('Error removing voice:', error);
+            vscode.window.showErrorMessage('Failed to remove voice: ' + (error instanceof Error ? error.message : String(error)));
+        }
+    }
+}
+
 // API interface that will be exposed to other extensions
 export interface PiperTTSApi {
     readText(text: string): Promise<void>;
     stopPlayback(): void;
     selectVoice(): Promise<void>;
     downloadVoice(): Promise<void>;
+    removeVoice(): Promise<void>;
 }
 
 // This will be the exported API that other extensions can consume
@@ -525,7 +574,8 @@ export function activate(context: vscode.ExtensionContext): PiperTTSApi {
             stopCurrentPlayback();
         },
         selectVoice: () => selectVoice(context),
-        downloadVoice: () => downloadVoice(context)
+        downloadVoice: () => downloadVoice(context),
+        removeVoice: () => removeVoice(context)
     };
 
     // Register commands to use the API
@@ -559,6 +609,9 @@ export function activate(context: vscode.ExtensionContext): PiperTTSApi {
 
     const downloadVoiceDisposable = vscode.commands.registerCommand('piper-tts.downloadVoice', () => api.downloadVoice());
     context.subscriptions.push(downloadVoiceDisposable);
+
+    const removeVoiceDisposable = vscode.commands.registerCommand('piper-tts.removeVoice', () => api.removeVoice());
+    context.subscriptions.push(removeVoiceDisposable);
 
     // Store the API in our module-level variable so it can be accessed by getApi
     extensionApi = api;
