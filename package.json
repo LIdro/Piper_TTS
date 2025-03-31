@@ -23,7 +23,7 @@
     "onCommand:piper-tts.selectVoice",
     "onCommand:piper-tts.downloadVoice",
     "onCommand:piper-tts.removeVoice",
-    "onLanguage:*"
+    "onStartupFinished"
   ],
   "exports": {
     "piper-tts": {
