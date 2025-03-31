@@ -1,4 +1,4 @@
-# Piper TTS API Usage
+# API Usage
 
 This document explains how to use the Piper TTS API from other Visual Studio Code extensions.
 
