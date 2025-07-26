@@ -56,12 +56,13 @@ function downloadFile(url: string, destination: string): Promise<void> {
         const file = fs.createWriteStream(destination, { flags: 'wx' });
         
         const request = protocol.get(url, (response) => {
-            if (response.statusCode === 302 || response.statusCode === 301) {
+            if (response.statusCode === 302 || response.statusCode === 301 || response.statusCode === 307) {
                 // Handle redirects
                 if (response.headers.location) {
+                    const redirectUrl = new URL(response.headers.location, url).toString();
                     // Close the current file before starting a new download
                     file.close();
-                    downloadFile(response.headers.location, destination)
+                    downloadFile(redirectUrl, destination)
                         .then(resolve)
                         .catch(reject);
                     return;
