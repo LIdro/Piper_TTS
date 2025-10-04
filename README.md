@@ -7,7 +7,7 @@ A Visual Studio Code extension that adds high-quality local text-to-speech capab
 - **Read Selected Text Aloud**: Easily convert selected text to speech with a single command
 - **Multiple Languages and Voices**: Support for 40+ languages with 100+ voice options
 - **Local Processing**: All text-to-speech processing happens locally on your machine, with no data sent to external servers
-- **Cross-Platform**: Works on Windows, macOS, and Linux
+- **Cross-Platform**: Works on Windows and Linux
 - **Voice Management**: Download additional voices or remove existing ones
 - **API for Other Extensions**: Can be used by other VS Code extensions
 
@@ -99,7 +99,7 @@ Other VS Code extensions can use Piper TTS functionality by accessing its API. S
 
 ## Known Issues
 
-- Functionality on MacOS is not fully tested, but should work. Please report any issues you encounter.
+- Please report any issues you encounter.
 
 ## License
 
