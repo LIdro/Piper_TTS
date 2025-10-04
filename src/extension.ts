@@ -5,6 +5,7 @@ import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as https from 'https';
 import * as http from 'http';
+import { fixSymlinks } from './symlinkUtils';
 
 let piperProcess: ReturnType<typeof spawn> | undefined;
 let playerProcess: ReturnType<typeof spawn> | undefined;
@@ -434,6 +435,14 @@ export function activate(context: vscode.ExtensionContext): PiperTTSApi {
     console.log('Extension path:', context.extensionUri.fsPath);
     console.log('OS platform:', os.platform());
     console.log('OS architecture:', os.arch());
+    
+    // Fix symbolic links on Linux platforms before doing anything else
+    if (os.platform() === 'linux') {
+        fixSymlinks(context.extensionUri.fsPath).catch(error => {
+            console.error('Failed to fix symbolic links:', error);
+            // Continue execution even if symlink fix fails
+        });
+    }
     
     // Set execute permissions for Linux and macOS binaries
     if (os.platform() === 'linux' || os.platform() === 'darwin') {
