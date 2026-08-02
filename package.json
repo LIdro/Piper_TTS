@@ -19,6 +19,8 @@
   ],
   "activationEvents": [
     "onCommand:piper-tts.readAloud",
+    "onCommand:piper-tts.readAloudPreview",
+    "onCommand:piper-tts.readAloudClipboard",
     "onCommand:piper-tts.increaseSpeed",
     "onCommand:piper-tts.decreaseSpeed",
     "onCommand:piper-tts.stopPlayback",
@@ -55,6 +57,16 @@
       {
         "command": "piper-tts.readAloud",
         "title": "Read Aloud Text",
+        "category": "Piper TTS"
+      },
+      {
+        "command": "piper-tts.readAloudPreview",
+        "title": "Read Aloud Selection (Markdown Preview)",
+        "category": "Piper TTS"
+      },
+      {
+        "command": "piper-tts.readAloudClipboard",
+        "title": "Read Aloud (Clipboard)",
         "category": "Piper TTS"
       },
       {
@@ -154,6 +166,13 @@
         {
           "command": "piper-tts.readAloud",
           "when": "editorHasSelection"
+        },
+        {
+          "command": "piper-tts.readAloudPreview",
+          "when": "activeWebviewPanelId == 'markdown.preview' || activeCustomEditorId == 'vscode.markdown.preview.editor'"
+        },
+        {
+          "command": "piper-tts.readAloudClipboard"
         },
         {
           "command": "piper-tts.stopPlayback",
@@ -260,6 +279,25 @@
         "command": "piper-tts.decreaseSpeed",
         "key": "alt+[",
         "when": "editorTextFocus || activeWebviewPanelId == 'markdown.preview' || activeCustomEditorId == 'vscode.markdown.preview.editor'"
+      },
+      {
+        "command": "piper-tts.readAloud",
+        "key": "alt+a",
+        "when": "editorTextFocus && editorHasSelection"
+      },
+      {
+        "command": "piper-tts.readAloudPreview",
+        "key": "alt+a",
+        "when": "activeWebviewPanelId == 'markdown.preview' || activeCustomEditorId == 'vscode.markdown.preview.editor'"
+      },
+      {
+        "command": "piper-tts.readAloudClipboard",
+        "key": "ctrl+alt+a"
+      },
+      {
+        "command": "piper-tts.stopPlayback",
+        "key": "alt+shift+a",
+        "when": "editorTextFocus || activeWebviewPanelId == 'markdown.preview' || activeCustomEditorId == 'vscode.markdown.preview.editor'"
       }
     ],
     "submenus": [
@@ -267,6 +305,9 @@
         "id": "piper-tts.speedSubmenu",
         "label": "Reading Speed"
       }
+    ],
+    "markdown.previewScripts": [
+      "./media/copySelection.js"
     ]
   },
   "scripts": {
